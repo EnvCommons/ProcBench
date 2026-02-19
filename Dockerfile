@@ -1,19 +1,26 @@
-FROM python:3.11-slim
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt update && apt upgrade -y && apt install -y \
-    curl
+    software-properties-common \
+    ca-certificates \
+    python3 \
+    python3-pip \
+    curl \
+    git \
+    git-lfs \
+    && apt clean \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+RUN uv venv --python 3.11
 
-# Copy application code
-COPY server.py .
+COPY . /app
+RUN uv pip install -r /app/requirements.txt
 
-# Expose port
-EXPOSE 8000
-
-# Start the server
-CMD ["python", "server.py"]
+EXPOSE 8080
+CMD ["uv", "run", "python", "/app/server.py"]
