@@ -1,7 +1,6 @@
 # ProcBench
 
-[![⭐ OpenReward Environment](https://img.shields.io/badge/%E2%AD%90%20OpenReward-Environment-f7e6cc)](https://openreward.ai/GeneralReasoning/ProcBench)
-[![Hugging Face Dataset](https://img.shields.io/badge/Hugging%20Face-Dataset-orange)](https://huggingface.co/datasets/ifujisawa/procbench)
+[![⭐ OpenReward Environment](https://img.shields.io/badge/%E2%AD%90%20OpenReward-Environment-f7e6cc)](https://openreward.ai/GeneralReasoning/ProcBench) [![Hugging Face Dataset](https://img.shields.io/badge/Hugging%20Face-Dataset-orange)](https://huggingface.co/datasets/ifujisawa/procbench)
 
 ## Description
 
@@ -19,7 +18,7 @@ No sandbox is needed. ProcBench uses standard defaults.
 
 ## License
 
-MIT (environment) + CC-BY-4.0 (dataset).
+[CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/).
 
 ## Tasks
 
@@ -43,11 +42,23 @@ The dataset (`procbench_data.parquet`, approximately 1.7 MB) is sourced from [Hu
 
 ## Time Horizon
 
-Single-turn. The agent receives the procedural prompt and submits one answer.
+Single-turn. The agent receives the procedural prompt and submits one answer for a total of one tool call.
 
 ## Environment Difficulty
 
-Complexity increases with longer step sequences. Even strong models show significant performance drops on tasks requiring many intermediate steps.
+The original paper evaluates frontier models on ProcBench (Prefix Accuracy / Sequential Match):
+
+| Model | PA | SM |
+|-------|-----|-----|
+| o1-preview | 69.8% | 49.6% |
+| o1-mini | 64.1% | 43.2% |
+| GPT-4o | 44.3% | 27.8% |
+| Claude-3.5-Sonnet | 37.8% | 23.0% |
+| Mistral-Large | 36.2% | 22.9% |
+| GPT-4o-mini | 23.0% | 9.3% |
+| Gemini-1.5-Pro | 22.4% | 11.0% |
+
+Performance degrades significantly with task complexity. On longer tasks (17-25 steps), even o1-preview drops to 59.9% PA.
 
 ## Other Environment Requirements
 
