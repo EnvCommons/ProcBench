@@ -14,9 +14,9 @@ from pydantic import BaseModel, Field
 
 # How many times to attempt the grader completion before giving up. A failed
 # grader call is an infrastructure failure, not a wrong answer, so it is worth
-# retrying; once every attempt is exhausted _grade_answer RAISES rather than
+# retrying; once the budget is exhausted _grade_answer RAISES rather than
 # fabricating a reward.
-N_OPENAI_COMPLETIONS = int(os.environ.get("N_OPENAI_COMPLETIONS", "3"))
+RETRY_BUDGET = int(os.environ.get("RETRY_BUDGET", "3"))
 
 
 # Data loading with intelligent fallback (production vs dev)
@@ -169,7 +169,7 @@ Respond with a JSON object containing:
         last_error: Exception | None = None
         result: dict[str, Any] | None = None
 
-        for attempt in range(1, N_OPENAI_COMPLETIONS + 1):
+        for attempt in range(1, RETRY_BUDGET + 1):
             try:
                 response = await self.grader_client.chat.completions.create(
                     model="gpt-5-mini",
@@ -181,9 +181,9 @@ Respond with a JSON object containing:
             except Exception as e:
                 last_error = e
                 print(
-                    f"[GRADER ERROR] attempt {attempt}/{N_OPENAI_COMPLETIONS} failed: {e}"
+                    f"[GRADER ERROR] attempt {attempt}/{RETRY_BUDGET} failed: {e}"
                 )
-                if attempt < N_OPENAI_COMPLETIONS:
+                if attempt < RETRY_BUDGET:
                     await asyncio.sleep(2 ** (attempt - 1))
 
         if result is None:
@@ -195,7 +195,7 @@ Respond with a JSON object containing:
             # against a failure it did not cause. Raising lets the platform retry the
             # tool call and, on persistent failure, end the rollout with no reward.
             raise RuntimeError(
-                f"Grader failed after {N_OPENAI_COMPLETIONS} attempt(s); cannot grade "
+                f"Grader failed after {RETRY_BUDGET} attempt(s); cannot grade "
                 f"this submission: {last_error}"
             ) from last_error
 

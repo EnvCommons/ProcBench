@@ -26,7 +26,7 @@ There are 5,520 tasks in a single `test` split, spanning 23 procedural task type
 
 ## Reward Structure
 
-Binary reward: 1.0 for correct, 0.0 for incorrect. Answers are graded by an LLM (gpt-5-mini) that compares the submitted answer to the expected answer, accounting for minor formatting differences such as spacing, capitalization, and equivalent numeric representations. The grader call is retried up to `N_OPENAI_COMPLETIONS` times (default 3, overridable by environment variable); if every attempt fails the environment raises rather than returning a reward, so a couldn't-grade infrastructure failure is never recorded as a wrong answer.
+Binary reward: 1.0 for correct, 0.0 for incorrect. Answers are graded by an LLM (gpt-5-mini) that compares the submitted answer to the expected answer, accounting for minor formatting differences such as spacing, capitalization, and equivalent numeric representations. The grader call is retried up to `RETRY_BUDGET` times (default 3, overridable by environment variable); if every attempt fails the environment raises rather than returning a reward, so a couldn't-grade infrastructure failure is never recorded as a wrong answer.
 
 No temperature parameter is passed to the grader.
 
