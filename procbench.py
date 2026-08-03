@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -9,6 +10,13 @@ import openai
 import pandas as pd
 from openreward.environments import Environment, JSONObject, TextBlock, ToolOutput, tool
 from pydantic import BaseModel, Field
+
+
+# How many times to attempt the grader completion before giving up. A failed
+# grader call is an infrastructure failure, not a wrong answer, so it is worth
+# retrying; once every attempt is exhausted _grade_answer RAISES rather than
+# fabricating a reward.
+N_OPENAI_COMPLETIONS = int(os.environ.get("N_OPENAI_COMPLETIONS", "3"))
 
 
 # Data loading with intelligent fallback (production vs dev)
@@ -158,45 +166,52 @@ Respond with a JSON object containing:
   "reasoning": "Brief 1-2 sentence explanation"
 }}"""
 
-        try:
-            response = await self.grader_client.chat.completions.create(
-                model="gpt-5-mini",
-                messages=[{"role": "user", "content": grader_prompt}],
-                response_format={"type": "json_object"}
-            )
+        last_error: Exception | None = None
+        result: dict[str, Any] | None = None
 
-            result = json.loads(response.choices[0].message.content)
-            is_correct = result.get("correct", False)
-            reasoning = result.get("reasoning", "No reasoning provided")
+        for attempt in range(1, N_OPENAI_COMPLETIONS + 1):
+            try:
+                response = await self.grader_client.chat.completions.create(
+                    model="gpt-5-mini",
+                    messages=[{"role": "user", "content": grader_prompt}],
+                    response_format={"type": "json_object"}
+                )
+                result = json.loads(response.choices[0].message.content)
+                break
+            except Exception as e:
+                last_error = e
+                print(
+                    f"[GRADER ERROR] attempt {attempt}/{N_OPENAI_COMPLETIONS} failed: {e}"
+                )
+                if attempt < N_OPENAI_COMPLETIONS:
+                    await asyncio.sleep(2 ** (attempt - 1))
 
-            if is_correct:
-                message = f"✓ Correct! {reasoning}"
-                reward = 1.0
-            else:
-                message = f"✗ Incorrect. {reasoning}\n\nExpected: {expected}"
-                reward = 0.0
+        if result is None:
+            # Every attempt failed, so we could not grade this submission. RAISE —
+            # do NOT fabricate a reward. Returning 0.0 (or falling back to an exact
+            # string match, which a verbose answer will essentially always fail)
+            # would record an infrastructure failure as a genuine wrong answer:
+            # indistinguishable from a real zero downstream, and it trains the agent
+            # against a failure it did not cause. Raising lets the platform retry the
+            # tool call and, on persistent failure, end the rollout with no reward.
+            raise RuntimeError(
+                f"Grader failed after {N_OPENAI_COMPLETIONS} attempt(s); cannot grade "
+                f"this submission: {last_error}"
+            ) from last_error
 
-            return {
-                "correct": is_correct,
-                "reward": reward,
-                "reasoning": reasoning,
-                "message": message,
-            }
+        is_correct = result.get("correct", False)
+        reasoning = result.get("reasoning", "No reasoning provided")
 
-        except Exception as e:
-            # Fallback to exact match if grader fails
-            print(f"[GRADER ERROR] {e}, falling back to exact match")
-            is_correct = (submitted == expected)
-            reward = 1.0 if is_correct else 0.0
+        if is_correct:
+            message = f"✓ Correct! {reasoning}"
+            reward = 1.0
+        else:
+            message = f"✗ Incorrect. {reasoning}\n\nExpected: {expected}"
+            reward = 0.0
 
-            if is_correct:
-                message = "✓ Correct! (exact match)"
-            else:
-                message = f"✗ Incorrect. Expected: {expected}"
-
-            return {
-                "correct": is_correct,
-                "reward": reward,
-                "reasoning": "Grader error, used exact match",
-                "message": message,
-            }
+        return {
+            "correct": is_correct,
+            "reward": reward,
+            "reasoning": reasoning,
+            "message": message,
+        }
